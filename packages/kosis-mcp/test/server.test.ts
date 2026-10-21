@@ -3,9 +3,12 @@
  * 네트워크 불필요 (KOSIS 호출 전 단계만).
  */
 import { spawn } from "node:child_process";
+import { fileURLToPath } from "node:url";
+import { Client } from "@modelcontextprotocol/sdk/client/index.js";
+import { StdioClientTransport } from "@modelcontextprotocol/sdk/client/stdio.js";
 import { describe, expect, it } from "vitest";
 
-const SERVER = new URL("../build/server.js", import.meta.url).pathname;
+const SERVER = fileURLToPath(new URL("../build/server.js", import.meta.url));
 
 function handshake(): Promise<string[]> {
   return new Promise((resolve, reject) => {
@@ -51,4 +54,35 @@ describe("kosis-mcp 서버", () => {
     expect(tools).toContain("kosis_search");
     expect(tools).toContain("kosis_indicator_data");
   }, 20_000);
+});
+
+describe.skipIf(!process.env.KOSIS_API_KEY)("MCP → KOSIS 라이브 조회", () => {
+  it("tools/call kosis_data로 요청한 3개 연도의 실업률을 반환한다", async () => {
+    const client = new Client({ name: "kosis-regression", version: "1" });
+    const transport = new StdioClientTransport({
+      command: process.execPath,
+      args: [SERVER],
+      env: { KOSIS_API_KEY: process.env.KOSIS_API_KEY! },
+      stderr: "ignore",
+    });
+    try {
+      await client.connect(transport);
+      const result = await client.callTool({ name: "kosis_data", arguments: {
+        orgId: "101", tblId: "DT_1DA7002S", itmId: "T80", objL1: "00",
+        prdSe: "Y", startPrdDe: "2023", endPrdDe: "2025",
+      } });
+      expect(result.isError).not.toBe(true);
+      const content = result.content as { type: string; text?: string }[];
+      const rows = JSON.parse(content.find((c) => c.type === "text")!.text!) as Record<string, string>[];
+      expect(rows.map((r) => r.PRD_DE).sort()).toEqual(["2023", "2024", "2025"]);
+      for (const row of rows) {
+        expect(row.ITM_ID).toBe("T80");
+        expect(row.C1).toBe("00");
+        expect(row.UNIT_NM).toBe("%");
+      }
+    } finally {
+      await client.close();
+      await transport.close();
+    }
+  }, 40_000);
 });

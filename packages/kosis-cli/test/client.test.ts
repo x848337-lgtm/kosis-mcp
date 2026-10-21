@@ -15,6 +15,70 @@ function svc(id: string) {
   return def;
 }
 
+const UNEMPLOYMENT = {
+  orgId: "101", tblId: "DT_1DA7002S", itmId: "T80", objL1: "00",
+  prdSe: "Y", startPrdDe: "2023", endPrdDe: "2025",
+};
+
+describe("통계자료 요청 회귀 (DT_1DA7002S)", () => {
+  afterEach(() => vi.unstubAllGlobals());
+
+  it("통계표선택은 Param 주소와 모든 필수변수를 전송한다", async () => {
+    const fetchMock = vi.fn(async (input: URL | string) => {
+      const url = new URL(input);
+      expect(url.origin + url.pathname).toBe("https://kosis.kr/openapi/Param/statisticsParameterData.do");
+      for (const [k, v] of Object.entries({ ...UNEMPLOYMENT, method: "getList", format: "json", jsonVD: "Y", apiKey: "fake+/=" }))
+        expect(url.searchParams.get(k), k).toBe(v);
+      expect(url.searchParams.has("userStatsId")).toBe(false);
+      return new Response("[]");
+    });
+    vi.stubGlobal("fetch", fetchMock);
+    await callService(svc("data"), UNEMPLOYMENT, { apiKey: "fake+/=" });
+    expect(fetchMock).toHaveBeenCalledOnce();
+    expect(buildUrl(svc("data"), UNEMPLOYMENT).searchParams.has("apiKey")).toBe(false);
+  });
+
+  it("자료등록은 기존 주소와 userStatsId를 유지한다", () => {
+    const params = { userStatsId: "user/101/T/1", prdSe: "Y", newEstPrdCnt: "3" };
+    validateParams(svc("data"), params);
+    const url = buildUrl(svc("data"), params);
+    expect(url.pathname).toBe("/openapi/statisticsData.do");
+    expect(url.searchParams.get("method")).toBe("getList");
+    expect(url.searchParams.get("userStatsId")).toBe(params.userStatsId);
+    expect(url.searchParams.get("newEstPrdCnt")).toBe("3");
+  });
+
+  it("메타조회는 기존 getMeta 주소를 유지한다", () => {
+    const url = buildUrl(svc("meta"), { orgId: "101", tblId: UNEMPLOYMENT.tblId, type: "ITM" });
+    expect(url.pathname).toBe("/openapi/statisticsData.do");
+    expect(url.searchParams.get("method")).toBe("getMeta");
+  });
+
+  it.each(["orgId", "tblId", "itmId", "objL1", "prdSe"])("필수변수 %s 누락은 요청 전에 거부한다", async (name) => {
+    const params: Record<string, string> = { ...UNEMPLOYMENT };
+    delete params[name];
+    const fetchMock = vi.fn();
+    vi.stubGlobal("fetch", fetchMock);
+    await expect(callService(svc("data"), params, { apiKey: "fake" })).rejects.toThrow(name);
+    expect(fetchMock).not.toHaveBeenCalled();
+  });
+
+  it("선택 분류·출력필드 및 최신기간을 손실 없이 전달한다", () => {
+    const params = { orgId: "101", tblId: "T", itmId: "T70+T80", objL1: "00", objL2: "1+2",
+      prdSe: "Y", newEstPrdCnt: "3", outputFields: "ORG_ID+TBL_ID+ITM_NM" };
+    validateParams(svc("data"), params);
+    const url = buildUrl(svc("data"), params);
+    for (const [k, v] of Object.entries(params)) expect(url.searchParams.get(k)).toBe(v);
+    expect(url.searchParams.has("startPrdDe")).toBe(false);
+  });
+
+  it("조회 방식 혼합과 불완전·중복 기간을 거부한다", () => {
+    expect(() => validateParams(svc("data"), { ...UNEMPLOYMENT, userStatsId: "u/1" })).toThrow(/함께/);
+    expect(() => validateParams(svc("data"), { ...UNEMPLOYMENT, endPrdDe: "" })).toThrow(/쌍/);
+    expect(() => validateParams(svc("data"), { ...UNEMPLOYMENT, newEstPrdCnt: "3" })).toThrow(/하나만/);
+  });
+});
+
 describe("레지스트리 무결성", () => {
   it("서비스 id는 유일하다", () => {
     const ids = SERVICES.map((s) => s.id);

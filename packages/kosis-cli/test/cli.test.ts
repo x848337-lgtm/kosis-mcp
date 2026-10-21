@@ -1,7 +1,8 @@
 import { execFileSync } from "node:child_process";
+import { fileURLToPath } from "node:url";
 import { describe, expect, it } from "vitest";
 
-const CLI = new URL("../build/cli.js", import.meta.url).pathname;
+const CLI = fileURLToPath(new URL("../build/cli.js", import.meta.url));
 
 function run(args: string[], env: Record<string, string | undefined> = {}) {
   try {

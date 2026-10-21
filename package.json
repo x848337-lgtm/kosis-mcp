@@ -1,8 +1,13 @@
 {
   "name": "kosis-workspace",
+  "version": "0.3.0-fix.1",
   "private": true,
   "description": "국가통계포털(KOSIS) OpenAPI 도구 모노리포 — kosis-cli(CLI, 무의존) + kosis-mcp(MCP 서버)",
   "type": "module",
+  "bin": {
+    "kosis-mcp": "build/server.js"
+  },
+  "files": ["build", "README.md", "PUBLIC-INSTALL.md", "LICENSE"],
   "license": "MIT",
   "repository": {
     "type": "git",
@@ -16,9 +21,13 @@
     "packages/kosis-mcp"
   ],
   "scripts": {
-    "build": "npm run build -w kosis-cli && npm run build -w kosis-mcp",
+    "build": "npm run build -w kosis-cli && npm run build -w kosis-mcp && node scripts/build-portable.mjs",
     "prepare": "npm run build",
     "test": "vitest run"
+  },
+  "dependencies": {
+    "@modelcontextprotocol/sdk": "^1.29.0",
+    "zod": "^4.4.3"
   },
   "devDependencies": {
     "@types/node": "^26.1.1",

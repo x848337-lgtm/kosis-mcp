@@ -9,6 +9,24 @@ import { getService } from "../src/services.js";
 const KEY = process.env.KOSIS_API_KEY;
 
 describe.skipIf(!KEY)("KOSIS 라이브 스모크", () => {
+  it("DT_1DA7002S: 실업률 T80 / 15세 이상 00 / 연간 2023–2025", async () => {
+    const data = await callService(getService("data")!, {
+      orgId: "101", tblId: "DT_1DA7002S", itmId: "T80", objL1: "00",
+      prdSe: "Y", startPrdDe: "2023", endPrdDe: "2025",
+    }, { apiKey: KEY });
+    expect(Array.isArray(data)).toBe(true);
+    const rows = data as Record<string, string>[];
+    expect(rows.map((r) => r.PRD_DE).sort()).toEqual(["2023", "2024", "2025"]);
+    for (const row of rows) {
+      expect(row.TBL_ID).toBe("DT_1DA7002S");
+      expect(row.ITM_ID).toBe("T80");
+      expect(row.C1).toBe("00");
+      // KOSIS 요청 주기 Y(년)는 이 표의 응답에서 A(annual)로 반환된다.
+      expect(row.PRD_SE).toBe("A");
+      expect(Number.isFinite(Number(row.DT))).toBe(true);
+    }
+  }, 30_000);
+
   it("통합검색이 파싱된 결과를 돌려준다", async () => {
     const data = await callService(
       getService("search")!,

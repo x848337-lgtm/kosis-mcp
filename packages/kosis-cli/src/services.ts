@@ -27,7 +27,7 @@ export interface ServiceDef {
   params: ParamDef[];
   /** 파라미터 조합 검증 — 문제 있으면 한국어 메시지, 통과면 null */
   validate?: (p: Record<string, string>) => string | null;
-  /** 파라미터에 따라 엔드포인트가 달라지는 서비스(주요지표)의 선택 로직 */
+  /** 파라미터에 따라 엔드포인트가 달라지는 서비스의 선택 로직 */
   resolve?: (p: Record<string, string>) => Resolved;
 }
 
@@ -109,8 +109,14 @@ export const SERVICES: ServiceDef[] = [
   {
     id: "data",
     desc: "통계자료 — 통계표의 수치자료 조회. orgId+tblId+itmId+objL1 조합(통계표선택) 또는 userStatsId(자료등록) 방식. 분류/항목 값: all(전체), 11*(하위레벨 포함), 11+21(복수). 요청은 4만 셀 이하.",
-    endpoint: "statisticsData.do",
+    // statisticsData.do?method=getList는 userStatsId 자료등록 전용이다.
+    // orgId/tblId로 선택하는 요청은 Param 경로로 보내야 한다.
+    endpoint: "Param/statisticsParameterData.do",
     fixed: { method: "getList" },
+    resolve: (p) => ({
+      endpoint: p.userStatsId ? "statisticsData.do" : "Param/statisticsParameterData.do",
+      fixed: { method: "getList" },
+    }),
     params: [
       { name: "orgId", desc: "기관 ID (search/list 결과의 ORG_ID)" },
       { name: "tblId", desc: "통계표 ID (search/list 결과의 TBL_ID)" },
@@ -130,11 +136,20 @@ export const SERVICES: ServiceDef[] = [
       { name: "smblChk", desc: "통계부호 표시 (Y)" },
     ],
     validate: (p) => {
+      if (p.userStatsId) {
+        const selection = ["orgId", "tblId", "itmId", ...Array.from({ length: 8 }, (_, i) => `objL${i + 1}`), "outputFields"];
+        if (selection.some((k) => p[k]))
+          return "userStatsId(자료등록)와 orgId/tblId/itmId/objL*/outputFields(통계표선택)는 함께 지정할 수 없습니다";
+      }
       if (!p.userStatsId) {
         const need = ["orgId", "tblId", "itmId", "objL1"].filter((k) => !p[k]);
         if (need.length)
           return `통계표선택 방식은 ${need.join(", ")} 필수 (자료등록 방식이면 userStatsId 사용)`;
       }
+      if (!!p.startPrdDe !== !!p.endPrdDe)
+        return "시점기준은 startPrdDe+endPrdDe 쌍으로 지정";
+      if (p.newEstPrdCnt && (p.startPrdDe || p.endPrdDe))
+        return "startPrdDe+endPrdDe(시점기준)와 newEstPrdCnt(최신자료기준)는 하나만 지정";
       return needPeriod(p);
     },
   },

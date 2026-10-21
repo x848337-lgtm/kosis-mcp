@@ -7,6 +7,8 @@
 > CLI + MCP server for KOSIS (Korean Statistical Information Service) OpenAPI.
 > Search and fetch official Korean statistics from the terminal or any MCP client.
 
+수정본의 공개 배포 및 개인 경로 없는 Claude JSON 설정은 [PUBLIC-INSTALL.md](PUBLIC-INSTALL.md)를 참고하세요. 이 수정본은 원본 npm 배포와 별개이며, 공개 Release URL을 실제로 만든 뒤 공유해야 합니다.
+
 - 커버 범위: KOSIS 공유서비스 7종 전체 — 통합검색 · 통계목록 · 통계자료 · 메타자료 · 통계설명 · 대용량 통계자료 · 통계주요지표
 - 의존성: Node.js 18+ (런타임 의존성은 MCP SDK와 zod뿐)
 - 인증키: **본인이 직접 무료로 발급** (아래 안내) — 키는 환경변수로만 전달하며 코드·설정에 저장하지 않습니다
@@ -154,7 +156,7 @@ Claude Desktop 설정 파일(`claude_desktop_config.json`)에 추가:
 - **최상위 목록**: 개발가이드에는 `parentListId`가 필수로 적혀 있지만, 실제로는 생략해야 최상위 목록이 반환됩니다.
 - **호출 제한**: 분당 200건. 통계자료(`data`)는 요청당 4만 셀 이하.
 - **오류 코드**: 10 인증키 누락 · 11 인증키 기간만료 · 20 필수변수 누락 · 21 잘못된 변수 · 30 조회결과 없음 · 31 조회결과 초과 · 40 분당 호출 제한 · 41 ROW수 제한 · 42 이용 제한 · 50 서버오류 — CLI/MCP 오류 메시지에 조치 방법이 함께 표시됩니다.
-- **`data`의 err 20**: 통계표가 분류를 여러 개 쓰는 경우(objL2, objL3 …) 해당 레벨을 전부 지정해야 합니다. `meta --type ITM`으로 분류 구조를 먼저 확인하세요.
+- **`data`의 err 20**: 통계표선택(`orgId+tblId+itmId+objL1`)은 `Param/statisticsParameterData.do?method=getList`, 자료등록(`userStatsId`)은 `statisticsData.do?method=getList`를 사용합니다. 이 도구는 조회 방식에 따라 주소를 선택합니다. 메타조회는 기존 `statisticsData.do?method=getMeta`를 사용합니다. 여러 분류가 있는 표는 `meta --type ITM`으로 확인한 분류에 맞춰 `objL2` 등을 추가 지정하세요. 두 조회 방식이나 기간 지정 방식을 혼합하면 요청 전에 오류로 안내합니다.
 - **주요지표 API의 가이드 오기**: 공식 가이드의 `startPrdDe`는 실제로 무시되며 `strtPrdDe`가 맞고, 고유번호별 목록조회는 가이드에 적힌 URL이 아니라 `indIdListSearchRequest.do`가 동작합니다. 최신자료기준 조회는 `rn`+`srvRn`을 쌍으로 줘야 합니다. 이 도구는 전부 보정해 둔 상태입니다.
 
 ## 6. 개발
